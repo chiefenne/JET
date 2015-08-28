@@ -3,10 +3,16 @@
 import sys
 
 import numpy as np
-from numpy import sqrt, tanh, exp
-from scipy.special import erf
+from numpy import sqrt, tanh
 import toyplot
 import toyplot.browser
+
+__author__ = 'Andreas Ennemoser'
+__copyright__ = 'Copyright 2015'
+__license__ = 'MIT'
+__version__ = '0.9'
+__email__ = 'andreas.ennemoser@gmail.com'
+__status__ = 'Development'
 
 
 class Jet(object):
@@ -235,9 +241,9 @@ class Jet(object):
                     (self.u[j, 2] + self.u[j-1, 2])
 
         if self.turbulent:
-            self.eddy()
+            self.turbulence()
 
-    def eddy(self):
+    def turbulence(self):
 
         umaxh = 0.5 * self.u[1, 2]
 
@@ -248,7 +254,7 @@ class Jet(object):
                 etab = self.eta[j-1] + (self.eta[j] - self.eta[j-1]) / \
                     (self.u[j, 2] - self.u[j-1, 2]) * (umaxh - self.u[j-1, 2])
 
-        # compute eddy vistosity
+        # compute turbulence viscosity
         edv = 0.037 * etab * self.u[1, 2] * np.sqrt(self.Reynolds) * \
             self.gsi[self.nx]**(1./3.)
 
@@ -644,7 +650,7 @@ class Jet(object):
 
             for iteration in range(1, self.max_iterations+1):
 
-                self.eddy()
+                self.turbulence()
                 self.coefficients()
                 self.solv5()
                 converged = self.convergence_check(iteration)
