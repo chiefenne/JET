@@ -8,5 +8,5 @@ During my master thesis 30 years ago I had to rework the numerical solution proc
 The code was done in FORTRAN 77 and the plotting was performed usinge some BENSON plot library on a VT200 or VT300 series monochrome terminal with graphics capability.
 
 I try now to redo it with modern programming tools like Python and additional Python visualization libraries.
-In addition I can improve my iPython skills.
+In addition I can improve my IPython skills.
 Furthermore, it trains my brain because I really have to think again and again how everything worked :)
