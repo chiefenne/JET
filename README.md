@@ -9,4 +9,5 @@ The code was done in FORTRAN 77 and the plotting was performed usinge some BENSO
 
 I try now to redo it with modern programming tools like Python and additional Python visualization libraries.
 In addition I can improve my IPython skills.
-Furthermore, it trains my brain because I really have to think again and again how everything worked :)
+
+And it makes FUN!
