@@ -1,28 +1,32 @@
-#!c:/python27/python.exe
+#!bin/env python
 
-import sys
+import os
+from functools import partial
+import copy
 
 import numpy as np
 from numpy import sqrt, tanh
-import scipy.optimize as opt
-import toyplot
-import toyplot.browser
+from scipy import optimize
+from scipy.optimize.nonlin import BroydenFirst, KrylovJacobian
+from scipy.optimize.nonlin import InverseJacobian
+import matplotlib.pyplot as plt
 
 __author__ = 'Andreas Ennemoser'
 __copyright__ = 'Copyright 2015'
 __license__ = 'MIT'
-__version__ = '0.9'
-__email__ = 'andreas.ennemoser@gmail.com'
+__version__ = '0.95'
+__email__ = 'andreas.ennemoser@aon.at'
 __status__ = 'Development'
 
+DEBUG = False
 
-class Jet(object):
+
+class Jet():
     """Numerical analysis of a 2D, heated, turbulent free jet
 
     Literature: T. CEBECI, P. BRADSHAW
     "Physical and computational aspects of convective heat transfer"
-    Springer 1984
-
+    Springer 198
     """
 
     def __init__(self):
@@ -31,36 +35,23 @@ class Jet(object):
         self.Reynolds = 10000.0
         self.Prandtl = 0.72
         self.Prandtl_turb = 0.9
-        self.turbulent = True
+        self.turbulent = False
 
-        # initialize arrays
-        self.ini_arrays(1000)
+        self.results = []
 
-        self.nx = 1
-        self.etae = 8
-        self.epsilon = 0.0001
-        self.max_iterations = 20
+        self.nx = 0
 
         # centerline boundary condition for the energy equation (dp0=0)
         # switch between temperature or heat flux boundary type
         self.alfa0 = 0.0
         self.alfa1 = 1.0
 
-        print ''
-        print '**************************************************'
-        print '**************************************************'
-        print '********** 2D TURBULENT HEATED FREE JET **********'
-        print '**************************************************'
-        print '**************************************************'
-
-    def ini_arrays(self, size):
-        self.f = np.zeros([size, 2])
-        self.u = np.zeros([size, 2])
-        self.v = np.zeros([size, 2])
-        self.g = np.zeros([size, 2])
-        self.p = np.zeros([size, 2])
-        self.b = np.zeros([size, 2])
-        self.e = np.zeros([size, 2])
+        print('')
+        print('**************************************************')
+        print('**************************************************')
+        print('********** 2D TURBULENT HEATED FREE JET **********')
+        print('**************************************************')
+        print('**************************************************')
 
     def set_Reynolds(self, Reynolds):
         self.Reynolds = Reynolds
@@ -76,16 +67,20 @@ class Jet(object):
         self.set_Prandtl(Prandtl)
         self.set_Prandtl_turb(Prandtl_turb)
 
-    def print_FluidProperties(self):
-        print ' '
-        print '***************************'
-        print '***** FLOW PROPERTIES *****'
-        print '***************************'
-        print ' REYNOLDS = %s' % (self.Reynolds)
-        print ' PRANDTL = %s' % (self.Prandtl)
-        print ' PRANDTL turbulent = %s' % (self.Prandtl_turb)
+    def print_FluidAndFlowInformation(self):
+        print(' ')
+        print('***************************')
+        print('***** FLOW PROPERTIES *****')
+        print('***************************')
+        print(' REYNOLDS = %s' % (self.Reynolds))
+        print(' PRANDTL = %s' % (self.Prandtl))
+        print(' PRANDTL turbulent = %s' % (self.Prandtl_turb))
+        if self.turbulent:
+            print(' TURBULENCE = ON')
+        else:
+            print(' TURBULENCE = OFF')
 
-    def mesh(self, gsimax=1000, dgsi=0.01, etae=8, deta1=0.01, stretch=1.12):
+    def mesh(self, gsimax=10, dgsi=0.01, etae=8, deta1=0.01, stretch=1.12):
         """Mesh generation for 2D rectangular transformed grid
 
         Args:
@@ -96,306 +91,462 @@ class Jet(object):
             stretch (float, optional): Description
         """
 
-        self.etae = etae
-
         # calculation of grid points from spacing parameters
         if stretch < 1.0001:
             etamax = etae / deta1
         else:
             # equation (13.49, page 400)
             etamax = np.log(1.0 + (stretch - 1.0) * etae / deta1) / \
-                     np.log(stretch)
+                np.log(stretch)
 
         self.etamax = int(etamax)
         self.gsimax = gsimax
 
+        # initialize arrays
+        # done here, as etamax first time available here
+        self.f = np.zeros([self.etamax, 2])
+        self.u = np.zeros([self.etamax, 2])
+        self.v = np.zeros([self.etamax, 2])
+        self.g = np.zeros([self.etamax, 2])
+        self.p = np.zeros([self.etamax, 2])
+        self.b = np.zeros([self.etamax, 2])
+        self.e = np.zeros([self.etamax, 2])
+
         # initialize grid arrays
-        self.gsi = np.zeros([self.gsimax+1])
-        self.eta = np.zeros([self.etamax+1])
-        self.deta = np.zeros([self.etamax+1])
-        self.a = np.zeros([self.etamax+1])
+        self.gsi = np.zeros([self.gsimax + 1])
+        self.eta = np.zeros([self.etamax])
+        self.deta = np.zeros([self.etamax - 1])
+        self.a = np.zeros([self.etamax])
 
-        self.gsi[0] = 0.0000001
+        self.gsi[0] = 1.0
         self.deta[0] = deta1
-        stretch = 1.12
 
-        for i in range(1, self.gsimax+1):
-            self.gsi[i] = self.gsi[i-1] + dgsi
+        for i in range(1, self.gsimax + 1):
+            self.gsi[i] = self.gsi[i - 1] + dgsi
+
+        for j in range(1, self.etamax - 1):
+            self.deta[j] = stretch * self.deta[j - 1]
 
         for j in range(1, self.etamax):
-            self.deta[j] = stretch * self.deta[j-1]
-            self.a[j] = 0.5 * self.deta[j-1]
-            self.eta[j] = self.eta[j-1] + self.deta[j-1]
+            self.a[j] = 0.5 * self.deta[j - 1]
+            self.eta[j] = self.eta[j - 1] + self.deta[j - 1]
 
-        print ' '
-        print '***************************'
-        print '***** MESH PROPERTIES *****'
-        print '***************************'
-        print ' GSI spacing: ', dgsi
-        print ' ETA spacing (initial): ', deta1
-        print ' ETA growth rate: ', stretch
-        print ' ETA boundary (ETAE): ', etae
-        print ' Number of grid points in GSI direction: ', self.gsimax
-        print ' Number of grid points in ETA direction: ', self.etamax
+        print(' ')
+        print('***************************')
+        print('***** MESH PROPERTIES *****')
+        print('***************************')
+        print(' GSI sstart: ', self.gsi[0])
+        print(' GSI spacing: ', dgsi)
+        print(' ETA spacing (initial): ', deta1)
+        print(' ETA growth rate: ', stretch)
+        print(' ETA boundary (ETAE given): ', etae)
+        print(' ETA boundary (ETAE calculated): ', self.eta[-1])
+        print(' Number of grid points in GSI direction: ', self.gsimax)
+        print(' Number of grid points in ETA direction: ', self.etamax)
 
-    def ivpl(self):
+    def boundary_conditions(self):
         """Initial velocity and temperature profiles.
         Equation (14.31), page 445
         """
 
         gsi0 = self.gsi[self.nx]
 
-        # boundary condition at jet center (symmetry)
-        self.f[0, 1] = 0.0
-
         beta = 27.855
         etac = 1.0
-        term = beta * 3.0 * gsi0**(2./3.) / sqrt(self.Reynolds)
+        term = beta * 3.0 * gsi0**(2. / 3.) / sqrt(self.Reynolds)
 
-        for j in range(1, self.etamax+1):
+        for j in range(self.etamax):
 
             tanf = tanh(term * (self.eta[j] - etac))
 
-            self.u[j, 1] = 3.0/2.0 * gsi0**(1./3.) * (1.0 - tanf)
-            self.v[j, 1] = - term * 3.0/2.0 * gsi0**(1./3.) * (1.0 - tanf**2)
-            self.g[j, 1] = self.u[j, 1] / 3.0 * gsi0**(1./3.)
-            self.p[j, 1] = self.v[j, 1] / 3.0 * gsi0**(1./3.)
-            self.b[j, 1] = 1.0
-            self.e[j, 1] = 1.0 / self.Prandtl
+            self.u[j, 0] = 3.0 / 2.0 * gsi0**(1. / 3.) * (1.0 - tanf)
+            self.v[j, 0] = - term * 3.0 / 2.0 * gsi0**(1. / 3.) * \
+                (1.0 - tanf**2)
+            self.g[j, 0] = self.u[j, 0] / 3.0 * gsi0**(1. / 3.)
+            self.p[j, 0] = self.v[j, 0] / 3.0 * gsi0**(1. / 3.)
+            self.b[j, 0] = 1.0
+            self.e[j, 0] = 1.0 / self.Prandtl
 
-            # check this
-            # check this
-            # check this
-            if j > 0:
-                self.f[j, 1] = self.f[j-1, 1] + self.a[j] * \
-                    (self.u[j, 1] + self.u[j-1, 1])
+            self.f[j, 0] = self.f[j - 1, 0] + self.a[j] * \
+                (self.u[j, 0] + self.u[j - 1, 0])
 
-        if self.turbulent:
-            self.turbulence()
+        # boundary conditions at jet center (symmetry)
+        self.f[0, 0] = 0.0
+        self.v[0, 0] = 0.0
+        self.p[0, 0] = 0.0
+
+        # boundary conditions at jet boundary (ambient)
+        self.u[-1, 0] = 0.0
+        self.g[-1, 0] = 0.0
+
+        self.turbulence()
+
+        # at first gsi stage make turbulence equal to second step
+        self.b[:, 0] = copy.copy(self.b[:, 1])
+        self.e[:, 0] = copy.copy(self.e[:, 1])
+
+        # smooth initial profiles in order to avoid non-smooth
+        # places, e.g. at jet center for derivatives
+        iter = 5
+        for k in range(iter):
+            self.f[1:-2] = 0.5 * (self.f[0:-2] + self.f[1:-1])
+            self.u[1:-2] = 0.5 * (self.u[0:-2] + self.u[1:-1])
+            self.v[1:-2] = 0.5 * (self.v[0:-2] + self.v[1:-1])
+            self.g[1:-2] = 0.5 * (self.g[0:-2] + self.g[1:-1])
+            self.p[1:-2] = 0.5 * (self.p[0:-2] + self.p[1:-1])
 
     def turbulence(self):
 
-        umaxh = 0.5 * self.u[1, 1]
+        umaxh = 0.5 * self.u[0, 0]
 
-        for j in range(1, self.etamax+1):
-            if self.u[j, 1] > umaxh:
-                etab = self.eta[self.etamax]
-            else:
-                etab = self.eta[j-1] + (self.eta[j] - self.eta[j-1]) / \
-                    (self.u[j, 1] - self.u[j-1, 1]) * (umaxh - self.u[j-1, 1])
+        # Find slice (i.e. index range) where u less than umaxh
+        index = np.where(self.u[:, 0] <= umaxh)
 
-        # compute turbulence viscosity
-        edv = 0.037 * etab * self.u[0, 1] * np.sqrt(self.Reynolds) * \
-            self.gsi[self.nx]**(1./3.)
+        if index:
+            # index of u where u first time is less than umaxh
+            j = index[0][0]
+            #
+            etab = self.eta[j - 1] + (self.eta[j] - self.eta[j - 1]) / \
+                (self.u[j, 0] - self.u[j - 1, 0]) * (umaxh - self.u[j - 1, 0])
+        else:
+            etab = self.eta[self.etamax]
+
+        if self.turbulent:
+            # compute turbulence viscosity
+            eddy_viscosity = 0.037 * etab * self.u[0, 0] * \
+                np.sqrt(self.Reynolds) * self.gsi[self.nx]**(1. / 3.)
+        else:
+            # zero eddy viscosity for laminar flow
+            eddy_viscosity = 0.0
+
+        # under-relaxation of eddy_viscosity
+        eddy_viscosity = eddy_viscosity * np.tanh(self.gsi[self.nx] - 1.0)
 
         for j in range(self.etamax):
-            self.b[j, 1] = 1.0 + edv
-            self.e[j, 1] = 1.0 / self.Prandtl + edv / self.Prandtl_turb
+            self.b[j, 1] = 1.0 + eddy_viscosity
+            self.e[j, 1] = 1.0 / self.Prandtl + \
+                eddy_viscosity / self.Prandtl_turb
 
-    def solver(self):
+    def solver(self, solver_type, iterations):
 
-        def residual(self, variables):
+        # knowns
+        f_o = copy.copy(self.f[:, 0])
+        u_o = copy.copy(self.u[:, 0])
+        v_o = copy.copy(self.v[:, 0])
+        g_o = copy.copy(self.g[:, 0])
+        p_o = copy.copy(self.p[:, 0])
+
+        self.turbulence()
+
+        # extra parameters for 'function'
+        # are later wrapped with partial
+        b = copy.copy(self.b[:, 1])
+        e = copy.copy(self.e[:, 1])
+        b_o = copy.copy(self.b[:, 0])
+        e_o = copy.copy(self.e[:, 0])
+        nx = copy.copy(self.nx)
+        gsi = copy.copy(self.gsi)
+        deta = copy.copy(self.deta)
+        etamax = copy.copy(self.etamax)
+
+        #
+        def F(unknowns, F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o]):
             """Summary
 
             Args:
-                variables (TYPE): Description
+                unknowns (np.array): f, u, v, g, p
 
             Returns:
                 TYPE: Description
             """
-            # All 5 unknowns
-            (f, u, v, g, p, b, e) = variables
-            deta = self.deta
-            gsi = self.gsi
-            nx = self.nx
-            alpha = 3.0 / 2.0 * (gsi[nx] + gsi[nx-1]) / (gsi[nx] - gsi[nx-1])
 
-            if self.turbulent:
-                self.turbulence()
+            # unknowns
+            if DEBUG:
+                print('unknowns', unknowns)
+                print('nx', nx)
+                print('gsi', gsi)
+            # (f, u, v, g, p) = unknowns
+            f = unknowns[0: etamax]
+            u = unknowns[etamax:2 * etamax]
+            v = unknowns[2 * etamax:3 * etamax]
+            g = unknowns[3 * etamax:4 * etamax]
+            p = unknowns[4 * etamax:5 * etamax]
 
-            # array slicing for indices j and n
-            # index j   means [1:, ]  in first array column
-            # index j-1 means [:-1, ] in first array column
-            # index n   means [, 1] in second array column
-            # index n-1 means [, 0] in second array column
+            alpha = 3.0 / 2.0 * (gsi[nx] + gsi[nx - 1]) / \
+                (gsi[nx] - gsi[nx - 1])
+
+            eq1 = np.zeros_like(f)
+            eq2 = np.zeros_like(f)
+            eq3 = np.zeros_like(f)
+            eq4 = np.zeros_like(f)
+            eq5 = np.zeros_like(f)
 
             # boundary conditions at jet center (symmetry)
-            f[0, :] = 0.0
-            v[0, :] = 0.0
-            p[0, :] = 0.0
+            f[0] = 0.0
+            v[0] = 0.0
+            p[0] = 0.0
+            f_o[0] = 0.0
+            v_o[0] = 0.0
+            p_o[0] = 0.0
 
             # boundary conditions at jet outer boundary (ambient)
-            u[-1, :] = 0.0
-            g[-1, :] = 0.0
+            u[-1] = 0.0
+            g[-1] = 0.0
+            u_o[-1] = 0.0
+            g_o[-1] = 0.0
+
+            # array slicing for index j
+            # [1:] means index j
+            # [:-1] means index j-1
 
             # ODE: f' = u
-            eq1 = 1.0/deta*(f[1:, 1] - f[:-1, 1]) - 0.5*(u[2:, 1] + u[1:-1, 1])
+            eq1[1:] = 1.0 / deta * (f[1:] - f[:-1]) - 0.5 * (u[1:] + u[:-1])
 
             # ODE: u' = v
-            eq2 = 1.0/deta*(u[1:, 1] - u[:-1, 1]) - 0.5*(v[2:, 1] + v[1:-1, 1])
+            eq2[1:] = 1.0 / deta * (u[1:] - u[:-1]) - 0.5 * (v[1:] + v[:-1])
 
             # ODE: g' = p
-            eq3 = 1.0/deta*(g[1:, 1] - g[:-1, 1]) - 0.5*(p[2:, 1] + p[1:-1, 1])
+            eq3[1:] = 1.0 / deta * (g[1:] - g[:-1]) - 0.5 * (p[1:] + p[:-1])
 
             # PDE: Momentum
-            eq4 = 1.0/deta * (b[1:, 1]*v[1:, 1] - b[:-1, 1]*v[:-1, 1]) + \
-                (1.0-alpha)*0.5*(u[1:, 1]**2 - u[:-1, 1]**2) + \
-                (1.0+alpha)*0.5*(f[1:, 1]*v[1:, 1] - f[:-1, 1]*v[:-1, 1]) + \
-                alpha*0.25*((v[1:, 0]+v[:-1, 0])*(f[1:, 1]+f[:-1, 1]) -
-                            (f[1:, 0]+f[:-1, 0])*(v[1:, 1]+v[:-1, 1])) + \
-                1.0/deta * (b[1:, 0]*v[1:, 0] - b[:-1, 0]*v[:-1, 0]) + \
-                (1.0+alpha)*0.5*(u[1:, 0]**2 - u[:-1, 0]**2) + \
-                (1.0-alpha)*0.5*(f[1:, 0]*v[1:, 0] - f[:-1, 0]*v[:-1, 0])
+            mom1 = 1.0 / deta * (b[1:] * v[1:] - b[:-1] * v[:-1])
+            mom2 = (1.0 - alpha) * 0.5 * (u[1:]**2 + u[:-1]**2)
+            mom3 = (1.0 + alpha) * 0.5 * (f[1:] * v[1:] + f[:-1] * v[:-1])
+            mom4 = alpha * 0.25 * ((v_o[1:] + v_o[:-1]) * (f[1:] + f[:-1]) -
+                                   (v[1:] + v[:-1]) * (f_o[1:] + f_o[:-1]))
+            mom5 = 1.0 / deta * (b_o[1:] * v_o[1:] - b_o[:-1] * v_o[:-1])
+            mom6 = (1.0 + alpha) * 0.5 * (u_o[1:]**2 + u_o[:-1]**2)
+            mom7 = (1.0 - alpha) * 0.5 * (f_o[1:] * v_o[1:] +
+                                          f_o[:-1] * v_o[:-1])
+
+            eq4[1:] = mom1 + mom2 + mom3 + mom4 + mom5 + mom6 + mom7
 
             # PDE: Energy
-            eq5 = 1.0/deta * (e[1:, 1]*p[1:, 1] - e[:-1, 1]*p[:-1, 1]) + \
-                (1.0+alpha)*0.5*(f[1:, 1]*p[1:, 1] - f[:-1, 1]*p[:-1, 1]) - \
-                alpha*(0.5*(u[1:, 1]*g[1:, 1] + u[:-1, 1]*g[:-1, 1]) +
-                       0.25*((u[1:, 0]+u[:-1, 0])*(g[1:, 1]+g[:-1, 1]) -
-                       (g[1:, 0]+g[:-1, 0])*(u[1:, 1]+u[:-1, 1]) +
-                       (p[1:, 1]+p[:-1, 1])*(f[1:, 0]+f[:-1, 0]) -
-                       (p[1:, 0]+p[:-1, 0])*(f[1:, 1]+f[:-1, 1]))) + \
-                1.0/deta * (e[1:, 0]*p[1:, 0] - e[:-1, 0]*p[:-1, 0]) + \
-                (1.0-alpha)*0.5*(f[1:, 0]*p[1:, 0] - f[:-1, 0]*p[:-1, 0]) + \
-                alpha*0.5*(u[1:, 0]*u[1:, 0] - g[:-1, 0]*g[:-1, 0])
+            ene1 = 1.0 / deta * (e[1:] * p[1:] - e[:-1] * p[:-1])
+            ene2 = (1.0 + alpha) * 0.5 * (f[1:] * p[1:] + f[:-1] * p[:-1])
+            ene3 = alpha * (0.5 * (u[1:] * g[1:] + u[:-1] * g[:-1]) +
+                            0.25 * ((u_o[1:] + u_o[:-1]) * (g[1:] + g[:-1]) -
+                                    (u[1:] + u[:-1]) * (g_o[1:] + g_o[:-1]) +
+                                    (p[1:] + p[:-1]) * (f_o[1:] + f_o[:-1]) -
+                                    (p_o[1:] + p_o[:-1]) * (f[1:] + f[:-1])))
+            ene4 = 1.0 / deta * (e_o[1:] * p_o[1:] - e_o[1:] * p_o[1:])
+            ene5 = (1.0 - alpha) * 0.5 * \
+                (f_o[1:] * p_o[1:] + f_o[:-1] * p_o[:-1])
+            ene6 = alpha * 0.5 * (u_o[1:] * g_o[1:] + u_o[:-1] * g_o[:-1])
 
-            return [eq1, eq2, eq3, eq4, eq5]
+            eq5[1:] = ene1 + ene2 - ene3 + ene4 + ene5 + ene6
 
-        def log_iterations(x, f):
-            """This function is called on every iteration as callback(x, f)
-            where x is the current solution and f the corresponding residual.
+            # boundary condintions make up another 5 equations
+            # put them on the 0-th element of all 5 equations
+            eq1[0] = f[0]
+            eq2[0] = v[0]
+            eq3[0] = p[0]
+            eq4[0] = u[-1]
+            eq5[0] = g[-1]
 
-            Args:
-                x (TYPE): Description
-                f (TYPE): Description
+            return np.array([eq1, eq2, eq3, eq4, eq5]).ravel()
 
-            Returns:
-                TYPE: Description
-            """
-            # current solution
-            print x
-            # current residual
-            print f
+        # initial guess
+        guess = np.array([f_o, u_o, v_o, g_o, p_o]).ravel()
 
-        # run solver
-        solution = opt.newton_krylov(residual, guess,
-                                     method='lgmres',
-                                     verbose=1,
-                                     callback=log_iterations)
+        if solver_type == 'newton_krylov':
+            # partial used to be able to send extra arguments
+            # to the newton_krylov solver
+            # those have to be the initial arguments in the function call F
+            F_partial = partial(F, F_args=[nx, gsi, deta, b, e, b_o, e_o])
+            solution = optimize.newton_krylov(F_partial, guess,
+                                              method='lgmres',
+                                              verbose=1,
+                                              iter=iterations)
+        elif solver_type == 'fsolve':
+            F_partial = partial(F, F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
+            solution = optimize.fsolve(F_partial, guess, full_output=True, xtol=1e-06)
+            print(solution[3])
+        elif solver_type == 'broyden1':
+            pass
 
         return solution
+
+    def shift_profiles(self, solution):
+
+        if DEBUG:
+            print('solution', solution)
+            print('len(solution)', len(solution))
+
+        self.f[:, 0] = copy.copy(solution[0][0*self.etamax:1*self.etamax])
+        self.u[:, 0] = copy.copy(solution[0][1*self.etamax:2*self.etamax])
+        self.v[:, 0] = copy.copy(solution[0][2*self.etamax:3*self.etamax])
+        self.g[:, 0] = copy.copy(solution[0][3*self.etamax:4*self.etamax])
+        self.p[:, 0] = copy.copy(solution[0][4*self.etamax:5*self.etamax])
+        self.b[:, 0] = copy.copy(self.b[:, 1])
+        self.e[:, 0] = copy.copy(self.e[:, 1])
 
     def print_stage_header(self):
 
         text = ' Jet propagation: GSI = %s at stage %s' % \
             (self.gsi[self.nx], self.nx)
 
-        if self.nx == 1:
-            text = text + ' - Initial velocity profile'
+        if self.turbulent:
+            text = text + ' - TURBULENT Flow'
+        else:
+            text = text + ' - LAMINAR Flow'
 
         textwidth = len(text)
 
-        print ' '
-        print ' '
-        print '*' * textwidth
-        print text
-        print '*' * textwidth
-        print ' '
+        print(' ')
+        print(' ')
+        print('*' * textwidth)
+        print(text)
+        if self.nx == 0:
+            print(' Initial velocity profile')
+        print('*' * textwidth)
+        print(' ')
 
-    def print_results(self):
-        print '  {:>2} {:^6}  {:^10}  {:^10}  {:^10}  {:^10}  {:^10}  {:^10}  {:^10}' \
-            .format('J', 'ETA', 'F', 'U', 'V', 'G', 'P', 'B', 'E')
+    def print_result(self):
+        print('  Viscosity (B)   = {: .4e}'.format(self.b[0, 1]))
+        print('  Diffusivity (E) = {: .4e}'.format(self.e[0, 1]))
+        print(' ')
+        print('   ' + '=' * 67)
+        print('  {:>2} {:^6}  {:^10}  {:^10}  {:^10}  {:^10}  {:^10}'
+              .format('J', 'ETA', 'F', 'U', 'V', 'G', 'P'))
+        print('   ' + '=' * 67)
 
-        for j in range(1, self.etamax+1):
+        for j in range(self.etamax):
 
-            print '{:4d} {: .2f} {: .4e} {: .4e} {: .4e} {: .4e} {: .4e} {: .4e} {: .4e}' \
-                .format(j, self.eta[j], self.f[j, 2], self.u[j, 2],
-                        self.v[j, 2], self.g[j, 2], self.p[j, 2], self.b[j, 2],
-                        self.e[j, 2])
+            print('{:4d} {: .2f} {: .4e} {: .4e} {: .4e} {: .4e} {: .4e}'
+                  .format(j, self.eta[j], self.f[j, 0], self.u[j, 0],
+                          self.v[j, 0], self.g[j, 0], self.p[j, 0]))
 
-    def shift_profiles(self):
-        for j in range(1, self.etamax+1):
-            self.f[j, 0] = self.f[j, 1]
-            self.u[j, 0] = self.u[j, 1]
-            self.v[j, 0] = self.v[j, 1]
-            self.g[j, 0] = self.g[j, 1]
-            self.p[j, 0] = self.p[j, 1]
-            self.e[j, 0] = self.e[j, 1]
-            self.b[j, 0] = self.b[j, 1]
+    def store_result(self):
+        nx = copy.copy(self.nx)
+        gsi = copy.copy(self.gsi[self.nx])
+        eta = copy.copy(self.eta)
+        f = copy.copy(self.f[:, 0])
+        u = copy.copy(self.u[:, 0])
+        v = copy.copy(self.v[:, 0])
+        g = copy.copy(self.g[:, 0])
+        p = copy.copy(self.p[:, 0])
+        b = copy.copy(self.b[:, 0])
+        e = copy.copy(self.e[:, 0])
+        self.results.append([nx, gsi, eta, f, u, v, g, p, b, e])
 
-    def convergence_check(self, iteration):
-        """Summary
+    def save_result(self, filename='results.dat'):
 
-        Args:
-            iteration (INT): Description
+        if not os.path.exists(self.result_folder):
+            os.mkdir(self.result_folder)
 
-        Returns:
-            BOOL: True, if convergence achieved, else False
-        """
-        converged = False
+        filename = os.path.join(self.result_folder, filename)
 
-        residual = np.abs(self.delu[1] / self.u[1, 2])
+        with open(filename, 'w') as f:
+            f.write('#\n')
+            f.write('# 2D TURBULENT HEATED FREE JET\n')
+            f.write('#\n')
+            f.write(' REYNOLDS = {:d}\n'.format(int(self.Reynolds)))
+            f.write(' PRANDTL = {}\n'.format(self.Prandtl))
+            f.write(' PRANDTL turbulent = {}\n'.format(self.Prandtl_turb))
 
-        print 'Iteration = {:2d}, EPSILON = {:.2e}, RESIDUAL = {:.4e}' \
-            .format(iteration, self.epsilon, residual)
+            for result in self.results:
+                f.write('\n\n')
+                f.write(' Jet propagation: GSI = {} at stage {}\n'.
+                        format(result[1], result[0]))
+                f.write('  Viscosity (B)   = {: .4e}\n'.format(result[8][0]))
+                f.write('  Diffusivity (E) = {: .4e}\n\n'.format(result[9][0]))
+                f.write('   ' + '=' * 67 + '\n')
+                f.write('  {:>2} {:^6}  {:^10}  {:^10}  {:^10}  {:^10}  {:^10}\n'
+                        .format('J', 'ETA', 'F', 'U', 'V', 'G', 'P'))
+                f.write('   ' + '=' * 67 + '\n')
+                for j in range(self.etamax):
+                    f.write('{:4d} {: .2f} {:{f}} {:{f}} {:{f}} {:{f}} {:{f}}\n'.
+                            format(j, result[2][j], result[3][j], result[4][j],
+                                   result[5][j], result[6][j], result[7][j], f=' .4e'))
 
-        if residual < self.epsilon:
-            converged = True
+    def plot(self, steps=[]):
 
-        if converged:
-            print ' '
-            print '*** CONVERGED ***'
-            print ' '
-        else:
-            if iteration == self.max_iterations:
-                print ' '
-                print '*** NOT CONVERGED ***'
-                print ' '
-                sys.exit('Execution stopped.')
+        if not os.path.exists(self.plot_folder):
+            os.mkdir(self.plot_folder)
 
-        return converged
+        # these are matplotlib.patch.Patch properties
+        props = dict(boxstyle='round', facecolor='white', alpha=0.9)
 
-    def plot(self):
-        canvas = toyplot.Canvas(width=900, height=900)
-        axes = canvas.axes()
-        x = self.eta[1:self.etamax]
-        y = self.u[1:self.etamax, 2]
-        mark = axes.plot(x, y)
-        mark1 = axes.scatterplot(x, y)
-        toyplot.browser.show(canvas)
+        for step in steps:
+            fig, ax = plt.subplots(figsize=(16, 8))
+            try:
+                result = self.results[step]
+            except:
+                print('Step {} not stored in results!'. format(step))
+                continue
+            ax.set_xlim(0.0, self.eta[-1])
+            ax.set_ylim(-4.0, 4.0)
+            ax.plot(result[2], result[3], label='F')
+            ax.plot(result[2], result[4], label='U')
+            ax.plot(result[2], result[5], label='V')
+            ax.plot(result[2], result[6], label='G')
+            ax.plot(result[2], result[7], label='P')
+            textstr = '\n'.join((
+                r'$Step={:03d}$'.format(result[0]),
+                r'$\xi={:f}$'.format(result[1]),
+                r'$\eta_m={:2.5f}$'.format(self.eta[-1]),
+                r'$Reynolds={:d}$'.format(int(self.Reynolds)),
+                r'$Prandtl={}$'.format(self.Prandtl),
+                r'$Prandtl_t={}$'.format(self.Prandtl_turb)))
+            # place a text box
+            ax.text(0.86, 0.24, textstr, transform=ax.transAxes, fontsize=12,
+                    verticalalignment='top', bbox=props)
+            plt.legend(loc='upper right')
+            figname = os.path.join(self.plot_folder,
+                                   'profiles_{:04d}.png'.format(step))
+            print('Creating {}'.format(figname))
+            plt.savefig(figname, dpi=150)
+            plt.close()
 
-    def main(self):
+    def main(self, solver_type='newton_krylov', iterations=None):
 
         # print thermo-physical fluid properties
-        self.print_FluidProperties()
+        self.print_FluidAndFlowInformation()
 
         # initial velocity profile
         self.print_stage_header()
-        self.ivpl()
-        self.print_results()
-        self.shift_profiles()
-        self.plot()
+        self.boundary_conditions()
+        self.store_result()
+        self.print_result()
 
-        for self.nx in range(2, self.gsimax):
+        for self.nx in range(1, self.gsimax):
             self.print_stage_header()
-
-            solution = self.solver()
-            print solution
-
-            self.print_results()
-            self.shift_profiles()
-            self.plot()
+            solution = self.solver(solver_type, iterations)
+            self.shift_profiles(solution)
+            self.store_result()
+            self.print_result()
 
 
 if __name__ == "__main__":
 
     jet = Jet()
 
+    jet.plot_folder = 'PLOTS'
+    jet.result_folder = 'RESULTS'
+
     # make mesh
-    jet.mesh(gsimax=1000, dgsi=0.01, etae=8, deta1=0.01, stretch=1.15)
+    jet.mesh(gsimax=200, dgsi=0.03, etae=12, deta1=0.01, stretch=1.11)
 
     # define properties
-    jet.set_FluidProperties(5300.0, 0.72, 0.5)
+    RE = 20000.0
+    PR = 12.0
+    PRt = 0.9
+    jet.set_FluidProperties(RE, PR, PRt)
+
+    # specifiy flow type (False=laminar, True=turbulent)
+    jet.turbulent = True
 
     # run main program
-    jet.main()
+    # solver types ('newton_krylov', 'broyden1', 'fsolve')
+
+    # jet.main(solver_type='newton_krylov', iterations=300)
+    jet.main(solver_type='fsolve')
+
+    # print(jet.results)
+
+    # save results as text file
+    jet.save_result(filename='results.dat')
+
+    # plot results
+    jet.plot(steps=range(len(jet.results)))
