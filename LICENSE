@@ -1,16 +1,6 @@
-```js
-var today = new Date();
-var dd = String(today.getDate()).padStart(2, '0');
-var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
-var yyyy = today.getFullYear();
-
-today = mm + '/' + dd + '/' + yyyy;
-document.write(today);
-```
-
 The MIT License (MIT)
 
-Copyright (c) 2015 Andreas Ennemoser
+Copyright (c) 2015-today Andreas Ennemoser
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
