@@ -7,8 +7,6 @@ import copy
 import numpy as np
 from numpy import sqrt, tanh
 from scipy import optimize
-from scipy.optimize.nonlin import BroydenFirst, KrylovJacobian
-from scipy.optimize.nonlin import InverseJacobian
 import matplotlib.pyplot as plt
 
 __author__ = 'Andreas Ennemoser'
@@ -227,7 +225,8 @@ class Jet():
         # under-relaxation of eddy_viscosity
         self.urel_visc = np.tanh(self.gsi[self.nx] - 0.4)
         eddy_viscosity = eddy_viscosity * self.urel_visc
-        print('  Eddy viscosity under-relaxation = {:5.3f}'.format(self.urel_visc))
+        print('  Eddy viscosity under-relaxation = {:5.3f}'.
+              format(self.urel_visc))
 
         for j in range(self.etamax):
             self.b[j, 1] = 1.0 + eddy_viscosity
@@ -360,14 +359,17 @@ class Jet():
             # partial used to be able to send extra arguments
             # to the newton_krylov solver
             # those have to be the initial arguments in the function call F
-            F_partial = partial(F, F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
+            F_partial = partial(F,
+                                F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
             solution = optimize.newton_krylov(F_partial, guess,
                                               method='lgmres',
                                               verbose=1,
                                               iter=iterations)
         elif solver_type == 'fsolve':
-            F_partial = partial(F, F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
-            solution = optimize.fsolve(F_partial, guess, full_output=True, xtol=1e-06)
+            F_partial = partial(F,
+                                F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
+            solution = optimize.fsolve(F_partial, guess,
+                                       full_output=True, xtol=1e-06)
             solver_message = solution[3]
             print('  Solver: {}'.format(solver_message))
         elif solver_type == 'broyden1':
@@ -381,11 +383,11 @@ class Jet():
             print('solution', solution)
             print('len(solution)', len(solution))
 
-        self.f[:, 0] = copy.copy(solution[0][0*self.etamax:1*self.etamax])
-        self.u[:, 0] = copy.copy(solution[0][1*self.etamax:2*self.etamax])
-        self.v[:, 0] = copy.copy(solution[0][2*self.etamax:3*self.etamax])
-        self.g[:, 0] = copy.copy(solution[0][3*self.etamax:4*self.etamax])
-        self.p[:, 0] = copy.copy(solution[0][4*self.etamax:5*self.etamax])
+        self.f[:, 0] = copy.copy(solution[0][0 * self.etamax:1 * self.etamax])
+        self.u[:, 0] = copy.copy(solution[0][1 * self.etamax:2 * self.etamax])
+        self.v[:, 0] = copy.copy(solution[0][2 * self.etamax:3 * self.etamax])
+        self.g[:, 0] = copy.copy(solution[0][3 * self.etamax:4 * self.etamax])
+        self.p[:, 0] = copy.copy(solution[0][4 * self.etamax:5 * self.etamax])
         self.b[:, 0] = copy.copy(self.b[:, 1])
         self.e[:, 0] = copy.copy(self.e[:, 1])
 
@@ -489,11 +491,13 @@ class Jet():
 
         for step in steps:
             fig, ax = plt.subplots(figsize=(16, 8))
+
             try:
                 result = self.results[step]
-            except:
+            except IndexError:
                 print('Step {} not stored in results!'. format(step))
                 continue
+
             ax.set_xlim(0.0, self.eta[-1])
             ax.set_ylim(-4.0, 4.0)
             ax.plot(result[2], result[3], label='F')
@@ -504,17 +508,17 @@ class Jet():
 
             text1 = '\n'.join((
                 r'$Step={:03d}$'.format(result[0]),
-                r'$\xi={:f}$'.format(result[1]),
-                r'$\eta_m={:2.5f}$'.format(self.eta[-1]),
+                r'$\xi={:5.3f}$'.format(result[1]),
+                r'$\eta_m={:2.3f}$'.format(self.eta[-1]),
                 r'$Reynolds={:d}$'.format(int(self.Reynolds)),
                 r'$Prandtl={}$'.format(self.Prandtl),
                 r'$Prandtl_t={}$'.format(self.Prandtl_turb)))
 
             text2 = '\n'.join((
-                r'$\xi_0={:f}$'.format(self.gsi[0]),
-                r'$d\xi={:f}$'.format(self.dgsi),
-                r'$d\eta_0={:2.5f}$'.format(self.deta[0]),
-                r'$\eta_e={:2.5f}$'.format(self.etae),
+                r'$\xi_0={:1.3f}$'.format(self.gsi[0]),
+                r'$d\xi={:5.3f}$'.format(self.dgsi),
+                r'$d\eta_0={:2.3f}$'.format(self.deta[0]),
+                r'$\eta_e={:2.2f}$'.format(self.etae),
                 r'$stretch factor={}$'.format(self.stretch)))
 
             # place text boxes
@@ -543,7 +547,8 @@ class Jet():
 
         for self.nx in range(1, self.gsimax):
             self.print_stage_header()
-            solution, self.solver_message = self.solver(solver_type, iterations)
+            solution, self.solver_message = self.solver(solver_type,
+                                                        iterations)
             self.shift_profiles(solution)
             self.store_result()
             self.print_result()
@@ -557,11 +562,11 @@ if __name__ == "__main__":
     jet.result_folder = 'RESULTS'
 
     # make mesh
-    jet.mesh(gsimax=300, dgsi=0.03, etae=13, deta1=0.03, stretch=1.1)
+    jet.mesh(gsimax=30, dgsi=0.03, etae=13, deta1=0.03, stretch=1.1)
 
-    # define properties
-    RE = 100000.0
-    PR = 0.72
+    # define fluid properties
+    RE = 20000.0
+    PR = 0.70
     PRt = 0.9
     jet.set_FluidProperties(RE, PR, PRt)
 
@@ -570,8 +575,6 @@ if __name__ == "__main__":
 
     # run main program
     # solver types ('newton_krylov', 'broyden1', 'fsolve')
-
-    # jet.main(solver_type='newton_krylov', iterations=300)
     jet.main(solver_type='fsolve')
 
     # print(jet.results)
@@ -580,4 +583,4 @@ if __name__ == "__main__":
     jet.save_result(filename='results.dat')
 
     # plot results
-    # jet.plot(steps=range(len(jet.results)))
+    jet.plot(steps=range(len(jet.results)))
