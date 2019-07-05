@@ -45,6 +45,10 @@ class Jet():
         self.alfa0 = 0.0
         self.alfa1 = 1.0
 
+        # plot scaling limits
+        self.scale_min = 1.e10
+        self.scale_max = -1.e10
+
         print('')
         print('**************************************************')
         print('**************************************************')
@@ -439,7 +443,12 @@ class Jet():
         b = copy.copy(self.b[:, 0])
         e = copy.copy(self.e[:, 0])
         self.results.append([nx, gsi, eta, f, u, v, g, p, b, e,
-                            self.urel_visc, self.solver_message])
+                             self.urel_visc, self.solver_message])
+
+        # capture min, max values for scaling plots later
+        for value in (f, u, v, g, p):
+            self.scale_min = min(self.scale_min, min(value))
+            self.scale_max = max(self.scale_max, max(value))
 
     def save_result(self, filename='results.dat'):
 
@@ -473,13 +482,14 @@ class Jet():
                 f.write('  Viscosity (B)   = {: .4e}\n'.format(result[8][0]))
                 f.write('  Diffusivity (E) = {: .4e}\n\n'.format(result[9][0]))
                 f.write('   ' + '=' * 67 + '\n')
-                f.write('  {:>2} {:^6}  {:^10}  {:^10}  {:^10}  {:^10}  {:^10}\n'
+                f.write('{:>2}{:^8}{:^12}{:^12}{:^12}{:^12}{:^12}\n'
                         .format('J', 'ETA', 'F', 'U', 'V', 'G', 'P'))
                 f.write('   ' + '=' * 67 + '\n')
                 for j in range(self.etamax):
-                    f.write('{:4d} {:5.2f} {:{f}} {:{f}} {:{f}} {:{f}} {:{f}}\n'.
+                    f.write('{:4d}{:5.2f}{:{f}}{:{f}}{:{f}}{:{f}}{:{f}}\n'.
                             format(j, result[2][j], result[3][j], result[4][j],
-                                   result[5][j], result[6][j], result[7][j], f=' .4e'))
+                                   result[5][j], result[6][j], result[7][j],
+                                   f=' .4e'))
 
     def plot(self, steps=[]):
 
@@ -499,7 +509,7 @@ class Jet():
                 continue
 
             ax.set_xlim(0.0, self.eta[-1])
-            ax.set_ylim(-4.0, 4.0)
+            ax.set_ylim(self.scale_min, self.scale_max)
             ax.plot(result[2], result[3], label='F')
             ax.plot(result[2], result[4], label='U')
             ax.plot(result[2], result[5], label='V')
@@ -565,7 +575,7 @@ if __name__ == "__main__":
     jet.mesh(gsimax=30, dgsi=0.03, etae=13, deta1=0.03, stretch=1.1)
 
     # define fluid properties
-    RE = 20000.0
+    RE = 30000.0
     PR = 0.70
     PRt = 0.9
     jet.set_FluidProperties(RE, PR, PRt)
