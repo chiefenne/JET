@@ -594,3 +594,4 @@ if __name__ == "__main__":
 
     # plot results
     jet.plot(steps=range(len(jet.results)))
+
