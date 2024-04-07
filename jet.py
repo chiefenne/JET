@@ -10,9 +10,9 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 
 __author__ = 'Andreas Ennemoser'
-__copyright__ = 'Copyright 2015'
+__copyright__ = 'Copyright 2024'
 __license__ = 'MIT'
-__version__ = '0.95'
+__version__ = '1.0'
 __email__ = 'andreas.ennemoser@aon.at'
 __status__ = 'Development'
 
@@ -20,21 +20,42 @@ DEBUG = False
 
 
 class Jet():
-    """Numerical analysis of a 2D, heated, turbulent free jet
+    """
+    Numerical analysis of a 2D, heated, turbulent free jet.
 
-    Literature: T. CEBECI, P. BRADSHAW
-    "Physical and computational aspects of convective heat transfer"
-    Springer 198
+    This class implements a numerical solver for analyzing the flow and heat transfer in a 2D turbulent free jet. The solver is based on the work of T. Cebeci and P. Bradshaw, as described in their book "Physical and Computational Aspects of Convective Heat Transfer".
+
+    The solver takes into account various parameters such as Reynolds number, Prandtl number, turbulent Prandtl number, and whether the flow is turbulent or not. It uses a transformed grid approach for mesh generation and solves the governing equations for velocity, temperature, and turbulence variables.
+
+    The class provides methods for setting the fluid properties, printing the fluid and flow information, generating the mesh, setting the boundary conditions, solving the equations, and plotting the results.
+
+    Example usage:
+    ```
+    jet = Jet(Reynolds=10000, Prandtl=0.7, Prandtl_turb=0.9, turbulent=True)
+    jet.set_FluidProperties(Reynolds=20000, Prandtl=0.8, Prandtl_turb=1.0)
+    jet.print_FluidAndFlowInformation()
+    jet.mesh(gsimax=10, dgsi=0.01, etae=8, deta1=0.01, stretch=1.12)
+    jet.boundary_conditions()
+    jet.solver(solver_type='newton_krylov', iterations=100)
+    jet.plot(steps=[0, 10, 20, 30, 40, 50])
+    ```
     """
 
-    def __init__(self):
-        """Summary"""
+    def __init__(self, Reynolds, Prandtl, Prandtl_turb, turbulent):
+        """
+        Initialize the Jet object.
 
-        self.Reynolds = 10000.0
-        self.Prandtl = 0.72
-        self.Prandtl_turb = 0.9
-        self.turbulent = False
+        Args:
+            Reynolds (float): The Reynolds number.
+            Prandtl (float): The Prandtl number.
+            Prandtl_turb (float): The turbulent Prandtl number.
+            turbulent (bool): Flag indicating whether the flow is turbulent or not.
+        """
 
+        self.Reynolds = Reynolds
+        self.Prandtl = Prandtl
+        self.Prandtl_turb = Prandtl_turb
+        self.turbulent = turbulent
         self.results = []
         self.solver_message = None
 
@@ -50,31 +71,60 @@ class Jet():
         self.scale_max = -1.e10
 
         print('')
-        print('**************************************************')
-        print('**************************************************')
-        print('********** 2D TURBULENT HEATED FREE JET **********')
-        print('**************************************************')
-        print('**************************************************')
+        print('*' * 50)
+        print('*' * 50)
+        print(' 2D TURBULENT HEATED FREE JET '.center(50, '*'))
+        print('*' * 50)
+        print('*' * 50)
 
     def set_Reynolds(self, Reynolds):
+        """
+        Set the Reynolds number.
+
+        Args:
+            Reynolds (float): The Reynolds number.
+        """
         self.Reynolds = Reynolds
 
     def set_Prandtl(self, Prandtl):
+        """
+        Set the Prandtl number.
+
+        Args:
+            Prandtl (float): The Prandtl number.
+        """
         self.Prandtl = Prandtl
 
     def set_Prandtl_turb(self, Prandtl_turb):
+        """
+        Set the turbulent Prandtl number.
+
+        Args:
+            Prandtl_turb (float): The turbulent Prandtl number.
+        """
         self.Prandtl_turb = Prandtl_turb
 
     def set_FluidProperties(self, Reynolds, Prandtl, Prandtl_turb):
+        """
+        Set the fluid properties.
+
+        Args:
+            Reynolds (float): The Reynolds number.
+            Prandtl (float): The Prandtl number.
+            Prandtl_turb (float): The turbulent Prandtl number.
+        """
         self.set_Reynolds(Reynolds)
         self.set_Prandtl(Prandtl)
         self.set_Prandtl_turb(Prandtl_turb)
 
     def print_FluidAndFlowInformation(self):
-        print(' ')
-        print('***************************')
-        print('***** FLOW PROPERTIES *****')
-        print('***************************')
+        """
+        Print the fluid and flow information.
+        """
+        print('')
+        print('*' * 30)
+        print(' FLOW PROPERTIES '.center(30, '*'))
+        print('*' * 30)
         print(' REYNOLDS = %s' % (self.Reynolds))
         print(' PRANDTL = %s' % (self.Prandtl))
         print(' PRANDTL turbulent = %s' % (self.Prandtl_turb))
@@ -84,14 +134,14 @@ class Jet():
             print(' TURBULENCE = OFF')
 
     def mesh(self, gsimax=10, dgsi=0.01, etae=8, deta1=0.01, stretch=1.12):
-        """Mesh generation for 2D rectangular transformed grid
+        """Generate a 2D rectangular transformed grid for mesh generation.
 
         Args:
-            gsimax (int, optional): Description
-            dgsi (float, optional): Description
-            etae (int, optional): Description
-            deta1 (float, optional): Description
-            stretch (float, optional): Description
+            gsimax (int, optional): The maximum number of grid points in the GSI direction.
+            dgsi (float, optional): The spacing between grid points in the GSI direction.
+            etae (int, optional): The boundary value for the ETA direction.
+            deta1 (float, optional): The initial spacing between grid points in the ETA direction.
+            stretch (float, optional): The growth rate of the spacing between grid points in the ETA direction.
         """
 
         self.dgsi = dgsi
@@ -139,9 +189,9 @@ class Jet():
             self.eta[j] = self.eta[j - 1] + self.deta[j - 1]
 
         print(' ')
-        print('***************************')
-        print('***** MESH PROPERTIES *****')
-        print('***************************')
+        print('*' * 30)
+        print(' MESH PROPERTIES '.center(30, '*'))
+        print('*' * 30)
         print(' GSI sstart: ', self.gsi[0])
         print(' GSI spacing: ', dgsi)
         print(' ETA spacing (initial): ', deta1)
@@ -153,7 +203,17 @@ class Jet():
 
     def boundary_conditions(self):
         """Initial velocity and temperature profiles.
-        Equation (14.31), page 445
+        This method calculates the initial velocity and temperature profiles for the jet flow. It implements Equation (14.31) from the book "Physical and Computational Aspects of Convective Heat Transfer" by T. Cebeci and P. Bradshaw.
+
+        The method uses the current values of the grid points and boundary conditions to calculate the initial profiles. It takes into account the Reynolds number, Prandtl number, turbulent Prandtl number, and whether the flow is turbulent or not.
+
+        The calculated profiles are stored in the `u` and `g` arrays, which represent the velocity and temperature profiles respectively.
+
+        Args:
+            None
+
+        Returns:
+            None
         """
 
         gsi0 = self.gsi[self.nx]
@@ -203,6 +263,22 @@ class Jet():
             self.p[1:-1] = 0.5 * (self.p[2:] + self.p[0:-2])
 
     def turbulence(self):
+        """
+        Calculate the turbulence variables.
+
+        This method calculates the turbulence variables, such as eddy viscosity and turbulent diffusivity, based on the current flow conditions and fluid properties. It takes into account the Reynolds number, Prandtl number, turbulent Prandtl number, and whether the flow is turbulent or not.
+
+        The calculated turbulence variables are stored in the `b` and `e` arrays, which represent the eddy viscosity and turbulent diffusivity respectively.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        # Implementation of turbulence calculations
+        # ...
+        pass
 
         umaxh = 0.5 * self.u[0, 0]
 
@@ -238,6 +314,18 @@ class Jet():
                 eddy_viscosity / self.Prandtl_turb
 
     def solver(self, solver_type, iterations):
+        """
+        Solve the equations.
+
+        This method solves the governing equations for velocity, temperature, and turbulence variables using the specified solver type and number of iterations.
+
+        Args:
+            solver_type (str): The type of solver to use.
+            iterations (int): The number of iterations to perform.
+
+        Returns:
+            tuple: A tuple containing the solution and solver message.
+        """
 
         # knowns
         f_o = copy.copy(self.f[:, 0])
@@ -261,13 +349,16 @@ class Jet():
 
         #
         def F(unknowns, F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o]):
-            """Summary
+            """
+            Calculate the residual of the equations.
+
+            This method calculates the residual of the governing equations for velocity, temperature, and turbulence variables. It takes the unknowns (f, u, v, g, p) as input and returns the residual.
 
             Args:
-                unknowns (np.array): f, u, v, g, p
+            unknowns (np.array): The unknowns (f, u, v, g, p).
 
             Returns:
-                TYPE: Description
+            np.array: The residual of the equations.
             """
 
             # unknowns
@@ -275,6 +366,7 @@ class Jet():
                 print('unknowns', unknowns)
                 print('nx', nx)
                 print('gsi', gsi)
+            
             # (f, u, v, g, p) = unknowns
             f = unknowns[0: etamax]
             u = unknowns[etamax:2 * etamax]
@@ -319,34 +411,36 @@ class Jet():
             eq3[1:] = 1.0 / deta * (g[1:] - g[:-1]) - 0.5 * (p[1:] + p[:-1])
 
             # PDE: Momentum
-            mom1 = 1.0 / deta * (b[1:] * v[1:] - b[:-1] * v[:-1])
-            mom2 = (1.0 - alpha) * 0.5 * (u[1:]**2 + u[:-1]**2)
-            mom3 = (1.0 + alpha) * 0.5 * (f[1:] * v[1:] + f[:-1] * v[:-1])
-            mom4 = alpha * 0.25 * ((v_o[1:] + v_o[:-1]) * (f[1:] + f[:-1]) -
+            momentum_1 = 1.0 / deta * (b[1:] * v[1:] - b[:-1] * v[:-1])
+            momentum_2 = (1.0 - alpha) * 0.5 * (u[1:]**2 + u[:-1]**2)
+            momentum_3 = (1.0 + alpha) * 0.5 * (f[1:] * v[1:] + f[:-1] * v[:-1])
+            momentum_4 = alpha * 0.25 * ((v_o[1:] + v_o[:-1]) * (f[1:] + f[:-1]) -
                                    (v[1:] + v[:-1]) * (f_o[1:] + f_o[:-1]))
-            mom5 = 1.0 / deta * (b_o[1:] * v_o[1:] - b_o[:-1] * v_o[:-1])
-            mom6 = (1.0 + alpha) * 0.5 * (u_o[1:]**2 + u_o[:-1]**2)
-            mom7 = (1.0 - alpha) * 0.5 * (f_o[1:] * v_o[1:] +
+            momentum_5 = 1.0 / deta * (b_o[1:] * v_o[1:] - b_o[:-1] * v_o[:-1])
+            momentum_6 = (1.0 + alpha) * 0.5 * (u_o[1:]**2 + u_o[:-1]**2)
+            momentum_7 = (1.0 - alpha) * 0.5 * (f_o[1:] * v_o[1:] +
                                           f_o[:-1] * v_o[:-1])
 
-            eq4[1:] = mom1 + mom2 + mom3 + mom4 + mom5 + mom6 + mom7
+            eq4[1:] = momentum_1 + momentum_2 + momentum_3 + momentum_4 + \
+                      momentum_5 + momentum_6 + momentum_7
 
             # PDE: Energy
-            ene1 = 1.0 / deta * (e[1:] * p[1:] - e[:-1] * p[:-1])
-            ene2 = (1.0 + alpha) * 0.5 * (f[1:] * p[1:] + f[:-1] * p[:-1])
-            ene3 = alpha * (0.5 * (u[1:] * g[1:] + u[:-1] * g[:-1]) +
+            energy_1 = 1.0 / deta * (e[1:] * p[1:] - e[:-1] * p[:-1])
+            energy_2 = (1.0 + alpha) * 0.5 * (f[1:] * p[1:] + f[:-1] * p[:-1])
+            energy_3 = alpha * (0.5 * (u[1:] * g[1:] + u[:-1] * g[:-1]) +
                             0.25 * ((u_o[1:] + u_o[:-1]) * (g[1:] + g[:-1]) -
                                     (u[1:] + u[:-1]) * (g_o[1:] + g_o[:-1]) +
                                     (p[1:] + p[:-1]) * (f_o[1:] + f_o[:-1]) -
                                     (p_o[1:] + p_o[:-1]) * (f[1:] + f[:-1])))
-            ene4 = 1.0 / deta * (e_o[1:] * p_o[1:] - e_o[1:] * p_o[1:])
-            ene5 = (1.0 - alpha) * 0.5 * \
+            energy_4 = 1.0 / deta * (e_o[1:] * p_o[1:] - e_o[1:] * p_o[1:])
+            energy_5 = (1.0 - alpha) * 0.5 * \
                 (f_o[1:] * p_o[1:] + f_o[:-1] * p_o[:-1])
-            ene6 = alpha * 0.5 * (u_o[1:] * g_o[1:] + u_o[:-1] * g_o[:-1])
+            energy_6 = alpha * 0.5 * (u_o[1:] * g_o[1:] + u_o[:-1] * g_o[:-1])
 
-            eq5[1:] = ene1 + ene2 - ene3 + ene4 + ene5 + ene6
+            eq5[1:] = energy_1 + energy_2 - energy_3 + energy_4 + energy_5 + \
+                      energy_6
 
-            # boundary condintions make up another 5 equations
+            # boundary conditions make up another 5 equations
             # put them on the 0-th element of all 5 equations
             eq1[0] = f[0]
             eq2[0] = v[0]
@@ -359,29 +453,37 @@ class Jet():
         # initial guess
         guess = np.array([f_o, u_o, v_o, g_o, p_o]).ravel()
 
+        # partial used to be able to send extra arguments to the solver
+        # those have to be the initial arguments in the function call F
+        F_partial = partial(F, F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
+
         if solver_type == 'newton_krylov':
-            # partial used to be able to send extra arguments
-            # to the newton_krylov solver
-            # those have to be the initial arguments in the function call F
-            F_partial = partial(F,
-                                F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
             solution = optimize.newton_krylov(F_partial, guess,
                                               method='lgmres',
                                               verbose=1,
                                               iter=iterations)
         elif solver_type == 'fsolve':
-            F_partial = partial(F,
-                                F_args=[nx, gsi, deta, etamax, b, e, b_o, e_o])
             solution = optimize.fsolve(F_partial, guess,
                                        full_output=True, xtol=1e-06)
             solver_message = solution[3]
             print('  Solver: {}'.format(solver_message))
         elif solver_type == 'broyden1':
-            pass
+            solution = optimize.broyden1(F_partial, guess,
+                                         f_tol=1e-06, iter=iterations)
+            solver_message = 'Broyden1 solver'
 
         return solution, solver_message
 
     def shift_profiles(self, solution):
+        """
+        Shifts the profiles of various variables based on the given solution.
+
+        Args:
+            solution (list): A list containing the solution values.
+
+        Returns:
+            None
+        """
 
         if DEBUG:
             print('solution', solution)
@@ -396,7 +498,19 @@ class Jet():
         self.e[:, 0] = copy.copy(self.e[:, 1])
 
     def print_stage_header(self):
+        """
+        Prints the stage header for the Jet propagation.
 
+        The stage header includes the GSI value and the stage number. If the flow is turbulent,
+        it also indicates that. Additionally, it prints the initial velocity profile if the stage
+        number is 0.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         text = ' Jet propagation: GSI = %s at stage %s' % \
             (self.gsi[self.nx], self.nx)
 
@@ -417,6 +531,18 @@ class Jet():
         print(' ')
 
     def print_result(self):
+        """
+        Prints the result of the JET calculation.
+
+        This method prints the viscosity, diffusivity, and other calculated values
+        for each iteration of the JET calculation to the terminal.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         print('  Viscosity (B)   = {: .4e}'.format(self.b[0, 1]))
         print('  Diffusivity (E) = {: .4e}'.format(self.e[0, 1]))
         print(' ')
@@ -426,12 +552,23 @@ class Jet():
         print('   ' + '=' * 67)
 
         for j in range(self.etamax):
-
             print('{:4d} {:5.2f} {: .4e} {: .4e} {: .4e} {: .4e} {: .4e}'
                   .format(j, self.eta[j], self.f[j, 0], self.u[j, 0],
                           self.v[j, 0], self.g[j, 0], self.p[j, 0]))
 
     def store_result(self):
+        """
+        Stores the current state of the JET object's attributes into the results list.
+
+        This method creates copies of the relevant attributes and appends them to the results list.
+        It also captures the minimum and maximum values for scaling plots later.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         nx = copy.copy(self.nx)
         gsi = copy.copy(self.gsi[self.nx])
         eta = copy.copy(self.eta)
@@ -451,6 +588,12 @@ class Jet():
             self.scale_max = max(self.scale_max, max(value))
 
     def save_result(self, filename='results.dat'):
+        """
+        Save the results of the 2D turbulent heated free jet simulation to a file.
+
+        Args:
+            filename (str, optional): The name of the file to save the results to. Defaults to 'results.dat'.
+        """
 
         if not os.path.exists(self.result_folder):
             os.mkdir(self.result_folder)
@@ -469,29 +612,70 @@ class Jet():
             f.write(' deta={:2.5f}\n'.format(self.deta[0]))
             f.write(' eta_e={:2.5f}\n'.format(self.etae))
             f.write(' eta_max={:2.5f}\n'.format(self.eta[-1]))
-            f.write(' strech factor={}\n'.format(self.stretch))
+            f.write(' stretch factor={}\n'.format(self.stretch))
+
+            # text for turbulence
+            if self.turbulent:
+                text = ' - TURBULENT Flow'
+            else:
+                text = ' - LAMINAR Flow'
 
             for result in self.results:
                 f.write('\n\n')
-                f.write(' Jet propagation: GSI = {:6.3} at stage {}\n'.
-                        format(result[1], result[0]))
-                f.write('  Solver: {}\n'.
-                        format(result[11]))
+                f.write('*' * 61 + '\n')
+                msg = f' Jet propagation: GSI = {result[1]:6.3} at stage {result[0]}' + text + '\n'
+                f.write(msg)
+                f.write('*' * 61 + '\n\n')
                 f.write('  Eddy viscosity under-relaxation = {:4.2f}\n'.
                         format(result[10]))
+                f.write('  Solver: {}\n'.
+                        format(result[11]))
                 f.write('  Viscosity (B)   = {: .4e}\n'.format(result[8][0]))
                 f.write('  Diffusivity (E) = {: .4e}\n\n'.format(result[9][0]))
                 f.write('   ' + '=' * 67 + '\n')
-                f.write('{:>2}{:^8}{:^12}{:^12}{:^12}{:^12}{:^12}\n'
+                f.write('{:>4}{:^8}{:^11}{:^13}{:^12}{:^12}{:^12}\n'
                         .format('J', 'ETA', 'F', 'U', 'V', 'G', 'P'))
                 f.write('   ' + '=' * 67 + '\n')
                 for j in range(self.etamax):
-                    f.write('{:4d}{:5.2f}{:{f}}{:{f}}{:{f}}{:{f}}{:{f}}\n'.
+                    f.write('{:4d} {:5.2f} {: .4e} {: .4e} {: .4e} {: .4e} {: .4e}\n'.
                             format(j, result[2][j], result[3][j], result[4][j],
-                                   result[5][j], result[6][j], result[7][j],
-                                   f=' .4e'))
+                                   result[5][j], result[6][j], result[7][j]))
+                    
+        print('\n')
+        print('*' * 60)
+        print('{} {}'.format('   Results saved to:', os.path.abspath(filename)))
+        print('*' * 60)
+        print('')
 
     def plot(self, steps=[]):
+        """
+        Create and save plots for each step in the given list of steps.
+
+        Parameters:
+        - steps (list): A list of step numbers for which plots will be created.
+
+        Returns:
+        - None
+
+        This method creates plots for each step in the given list of steps. The plots
+        show the values of F, U, V, G, and P as a function of xi. The plots are saved
+        as PNG images in the plot_folder directory.
+
+        If the plot_folder directory does not exist, it will be created before saving
+        the plots.
+
+        Note: The method assumes that the necessary data is available in the results
+        attribute of the object.
+
+        Example usage:
+        jet = JET()
+        jet.plot([1, 2, 3])
+        """
+
+        # message to user
+        print('*' * 60)
+        print('{} {}'.format('   Creating plots in folder:', os.path.abspath(self.plot_folder)))
+        print('*' * 60)
 
         if not os.path.exists(self.plot_folder):
             os.mkdir(self.plot_folder)
@@ -529,7 +713,7 @@ class Jet():
                 r'$d\xi={:5.3f}$'.format(self.dgsi),
                 r'$d\eta_0={:2.3f}$'.format(self.deta[0]),
                 r'$\eta_e={:2.2f}$'.format(self.etae),
-                r'$stretch factor={}$'.format(self.stretch)))
+                r'$stretch\;factor={}$'.format(self.stretch)))
 
             # place text boxes
             ax.text(0.86, 0.24, text1, transform=ax.transAxes, fontsize=12,
@@ -545,6 +729,13 @@ class Jet():
             plt.close()
 
     def main(self, solver_type='newton_krylov', iterations=None):
+        """
+        Main method for running the simulation.
+
+        Args:
+            solver_type (str, optional): Type of solver to use. Defaults to 'newton_krylov'.
+            iterations (int, optional): Number of iterations to perform. Defaults to None.
+        """
 
         # print thermo-physical fluid properties
         self.print_FluidAndFlowInformation()
@@ -557,8 +748,7 @@ class Jet():
 
         for self.nx in range(1, self.gsimax):
             self.print_stage_header()
-            solution, self.solver_message = self.solver(solver_type,
-                                                        iterations)
+            solution, self.solver_message = self.solver(solver_type, iterations)
             self.shift_profiles(solution)
             self.store_result()
             self.print_result()
@@ -566,7 +756,13 @@ class Jet():
 
 if __name__ == "__main__":
 
-    jet = Jet()
+    # define fluid properties
+    Reynolds = 30000.0
+    Prandtl = 0.70
+    Prandtl_turb = 0.9
+    turbulent = True
+
+    jet = Jet(Reynolds, Prandtl, Prandtl_turb, turbulent)
 
     jet.plot_folder = 'PLOTS'
     jet.result_folder = 'RESULTS'
@@ -574,20 +770,9 @@ if __name__ == "__main__":
     # make mesh
     jet.mesh(gsimax=30, dgsi=0.03, etae=13, deta1=0.03, stretch=1.1)
 
-    # define fluid properties
-    RE = 30000.0
-    PR = 0.70
-    PRt = 0.9
-    jet.set_FluidProperties(RE, PR, PRt)
-
-    # specifiy flow type (False=laminar, True=turbulent)
-    jet.turbulent = True
-
     # run main program
     # solver types ('newton_krylov', 'broyden1', 'fsolve')
     jet.main(solver_type='fsolve')
-
-    # print(jet.results)
 
     # save results as text file
     jet.save_result(filename='results.dat')
