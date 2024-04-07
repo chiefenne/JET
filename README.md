@@ -9,3 +9,6 @@ During my master thesis (1986) I had to rework the numerical solution procedure 
 The code was done in FORTRAN 77 and the plotting was performed using the BENSON plot library on a VT200 or VT300 series monochrome terminal with graphics capability. The computer was a MicroVAX II running the VMS operating system.
 
 This work here is revisiting the topic with modern programming tools like Python and Matplotlib. I reworked the software code from my thesis mainly for sentimental reasons.
+
+## Example plot (non-dimensional results)
+![Image](profiles_0020.png)
