@@ -11,4 +11,7 @@ The code was done in FORTRAN 77 and the plotting was performed using the BENSON 
 This work here is revisiting the topic with modern programming tools like Python and Matplotlib. I reworked the software code from my thesis mainly for sentimental reasons.
 
 ## Example plot (non-dimensional results)
+
+The nozzle width and jet exit velocity are implicitely defined via the Reynolds number. $U$ depicts the dimensionless jet velocity.
+
 ![Image](profiles_0020.png)
