@@ -680,8 +680,8 @@ class Jet():
         if not os.path.exists(self.plot_folder):
             os.mkdir(self.plot_folder)
 
-        # these are matplotlib.patch.Patch properties
-        props = dict(boxstyle='round', facecolor='white', alpha=0.9)
+        # text boxes styling
+        props = dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='grey')
 
         for step in steps:
             fig, ax = plt.subplots(figsize=(16, 8))
@@ -716,12 +716,36 @@ class Jet():
                 r'$stretch\;factor={}$'.format(self.stretch)))
 
             # place text boxes
-            ax.text(0.86, 0.24, text1, transform=ax.transAxes, fontsize=12,
+            ax.text(0.86, 0.41, text1, color='grey', transform=ax.transAxes, fontsize=12,
                     verticalalignment='top', bbox=props)
 
-            ax.text(0.1, 0.24, text2, transform=ax.transAxes, fontsize=12,
+            ax.text(0.86, 0.18, text2, color='grey', transform=ax.transAxes, fontsize=12,
                     verticalalignment='top', bbox=props)
-            plt.legend(loc='upper right')
+
+            # plot legend
+            ax.legend(loc='upper right', fontsize=12, frameon=True, fancybox=True,
+                        framealpha=1.0, edgecolor='grey', prop={'size': 12},
+                        bbox_to_anchor=(1.0, 0.95))
+
+            # axis formatting
+            ax.set_xlabel(r'$\eta$')
+            ax.set_ylabel(r'$F, U, V, G, P$')
+            ax.set_title('2D Turbulent Heated Free Jet', fontsize=16)
+
+            # ticks and grid
+            ax.set_xticks(np.arange(0, self.eta[-1], 1.0))
+            # Generate ticks from scale_min to scale_max, ensuring 0 is included
+            step_size = 0.5
+            # Generate ticks from 0 to scale_max and from 0 to scale_min
+            ticks_positive = np.arange(0, self.scale_max + step_size, step_size)
+            ticks_negative = np.arange(0, self.scale_min - step_size, -step_size)
+            # Combine and sort the ticks, removing duplicate zeros if present
+            ticks = np.unique(np.concatenate((ticks_negative, ticks_positive)))
+            ax.set_yticks(ticks)
+
+            ax.axhline(0, color='black', lw=1, linestyle='--')  # add x-axis at y=0
+            ax.grid(True)
+
             figname = os.path.join(self.plot_folder,
                                    'profiles_{:04d}.png'.format(step))
             print('Creating {}'.format(figname))
