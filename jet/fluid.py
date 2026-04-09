@@ -1,10 +1,15 @@
-data = {
+"""Fluid property lookup and interpolation."""
+
+import numpy as np
+
+# Fluid property data (temperature in °C)
+FLUID_DATA = {
     "water": {
         "temperatures": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
         "density": [
-            999.8481752788709, 999.7066162843252, 998.2111243633215, 
-            995.6533207351449, 992.2201605742613, 988.0388323506055, 
-            983.1996195578257, 977.7684580197744, 971.7942886009208, 
+            999.8481752788709, 999.7066162843252, 998.2111243633215,
+            995.6533207351449, 992.2201605742613, 988.0388323506055,
+            983.1996195578257, 977.7684580197744, 971.7942886009208,
             965.3135617657077, 958.3530834197771],
         "viscosity": [
             0.0017911125966176141, 0.0013058918131530972, 0.0010015934708791248,
@@ -12,9 +17,9 @@ data = {
             0.0004660371648088928, 0.0004035504334654342, 0.0003540529862630665,
             0.0003141776362517119, 0.00028158433130341074],
         "specific_heat": [
-            4219.367075819567, 4195.12594337763, 4184.023803718882, 
-            4179.796089501707, 4179.393421214592, 4181.32227861692, 
-            4184.934014552395, 4190.048146234553, 4196.734263591035, 
+            4219.367075819567, 4195.12594337763, 4184.023803718882,
+            4179.796089501707, 4179.393421214592, 4181.32227861692,
+            4184.934014552395, 4190.048146234553, 4196.734263591035,
             4205.186240733563, 4215.653804494868],
         "thermal_conductivity": [
             0.555681887505726, 0.5787830733753558, 0.5980174662332843,
@@ -51,5 +56,39 @@ data = {
         "viscosity": [2.2, 1.8, 1.5, 1.3, 1.15, 1, 0.9, 0.8, 0.72, 0.65, 0.6],
         "specific_heat": [1800, 1850, 1900, 1950, 2000, 2050, 2100, 2150, 2200, 2250, 2300],
         "thermal_conductivity": [0.12, 0.125, 0.13, 0.135, 0.14, 0.145, 0.15, 0.155, 0.16, 0.165, 0.17]
-        }
+    }
 }
+
+
+class FluidProperties:
+    """Interpolated fluid properties at a given temperature."""
+
+    def __init__(self, fluid_name: str, temperature_C: float):
+        if fluid_name not in FLUID_DATA:
+            raise ValueError(
+                f"Unknown fluid '{fluid_name}'. "
+                f"Available: {list(FLUID_DATA.keys())}")
+
+        data = FLUID_DATA[fluid_name]
+        temps_K = [t + 273.15 for t in data['temperatures']]
+        temp_K = temperature_C + 273.15
+
+        self.name = fluid_name
+        self.temperature_C = temperature_C
+        self.temperature_K = temp_K
+        self.density = np.interp(temp_K, temps_K, data['density'])
+        self.viscosity = np.interp(temp_K, temps_K, data['viscosity'])
+        self.kinematic_viscosity = self.viscosity / self.density
+        self.thermal_conductivity = np.interp(
+            temp_K, temps_K, data['thermal_conductivity'])
+        self.specific_heat = np.interp(temp_K, temps_K, data['specific_heat'])
+        self.Prandtl = (self.viscosity * self.specific_heat /
+                        self.thermal_conductivity)
+
+    def Reynolds(self, velocity: float, length: float) -> float:
+        """Calculate Reynolds number."""
+        return velocity * length / self.kinematic_viscosity
+
+    @staticmethod
+    def available_fluids():
+        return list(FLUID_DATA.keys())
