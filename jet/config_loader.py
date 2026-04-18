@@ -10,6 +10,9 @@ from .config import (DimensionlessCaseConfig, FluidConfig, GeometryConfig,
                      ScalingConfig, SimulationConfig, SolverConfig,
                      TurbulenceConfig)
 
+DIMENSIONAL_SECTION = 'dimensional (physical)'
+LEGACY_SCALING_SECTION = 'scaling'
+
 
 def _require_section(parser: configparser.ConfigParser, section: str):
     if not parser.has_section(section):
@@ -24,9 +27,18 @@ def _read_optional_float(parser: configparser.ConfigParser, section: str,
     return float(value)
 
 
+def _get_dimensional_section(parser: configparser.ConfigParser) -> str:
+    if parser.has_section(DIMENSIONAL_SECTION):
+        return DIMENSIONAL_SECTION
+    if parser.has_section(LEGACY_SCALING_SECTION):
+        return LEGACY_SCALING_SECTION
+    raise ValueError(
+        'Missing required section '
+        f'[{DIMENSIONAL_SECTION}] in config file.')
+
+
 def _read_scaling(parser: configparser.ConfigParser) -> ScalingConfig:
-    section = 'scaling'
-    _require_section(parser, section)
+    section = _get_dimensional_section(parser)
     return ScalingConfig(
         fluid=FluidConfig(name=parser.get(section, 'fluid')),
         geometry=GeometryConfig(
@@ -38,7 +50,6 @@ def _read_scaling(parser: configparser.ConfigParser) -> ScalingConfig:
             ambient_temperature_C=parser.getfloat(
                 section, 'ambient_temperature_C'),
         ),
-        recalculate=parser.get(section, 'recalculate', fallback='none'),
     )
 
 
@@ -55,7 +66,12 @@ def load_simulation_config(config_path: str | Path = 'config.ini'
     _require_section(parser, 'run')
     _require_section(parser, 'dimensionless_case')
     _require_section(parser, 'turbulence')
-    _require_section(parser, 'scaling')
+    mode = parser.get('run', 'mode', fallback='physical').strip().lower()
+    if mode not in ('physical', 'dimensionless'):
+        raise ValueError("Invalid mode. Expected 'physical' or 'dimensionless'.")
+
+    if mode == 'physical':
+        _get_dimensional_section(parser)
 
     mesh_section = 'mesh' if parser.has_section('mesh') else None
     solver_section = 'solver' if parser.has_section('solver') else None
@@ -107,28 +123,29 @@ def load_simulation_config(config_path: str | Path = 'config.ini'
             output_section, 'plot_dimensionless', fallback=True)
             if output_section else True),
         plot_dimensional=(parser.getboolean(
-            output_section, 'plot_dimensional', fallback=True)
-            if output_section else True),
+            output_section, 'plot_dimensional', fallback=False)
+            if output_section else False),
         plot_dimensionless_summary=(parser.getboolean(
-            output_section, 'plot_dimensionless_summary', fallback=True)
-            if output_section else True),
+            output_section, 'plot_dimensionless_summary', fallback=False)
+            if output_section else False),
         plot_dimensional_summary=(parser.getboolean(
-            output_section, 'plot_dimensional_summary', fallback=True)
-            if output_section else True),
+            output_section, 'plot_dimensional_summary', fallback=False)
+            if output_section else False),
         save_dimensional_results=(parser.getboolean(
-            output_section, 'save_dimensional_results', fallback=True)
-            if output_section else True),
+            output_section, 'save_dimensional_results', fallback=False)
+            if output_section else False),
         verbosity=(parser.getint(output_section, 'verbosity', fallback=1)
                    if output_section else 1),
     )
 
     return SimulationConfig(
-        mode=parser.get('run', 'mode', fallback='physical'),
+        mode=mode,
         dimensionless_case=DimensionlessCaseConfig(
             Reynolds=parser.getfloat('dimensionless_case', 'Reynolds'),
             Prandtl=parser.getfloat('dimensionless_case', 'Prandtl'),
         ),
-        scaling=_read_scaling(parser),
+        scaling=(_read_scaling(parser)
+                 if mode == 'physical' else ScalingConfig()),
         turbulence=TurbulenceConfig(
             Prandtl_turb=parser.getfloat('turbulence', 'Prandtl_turb'),
             turbulent=parser.getboolean('turbulence', 'turbulent'),

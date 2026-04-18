@@ -13,7 +13,7 @@ class FluidConfig:
 @dataclass
 class InitialConditionConfig:
     """Nozzle-exit and ambient values defining the thermal setup."""
-    velocity: Optional[float] = 20.0   # [m/s], may be calculated in scaling
+    velocity: Optional[float] = 20.0   # [m/s], required in physical mode
     nozzle_temperature_C: float = 25.0  # [C]
     ambient_temperature_C: float = 20.0  # [C]
 
@@ -25,17 +25,16 @@ class InitialConditionConfig:
 @dataclass
 class GeometryConfig:
     """Nozzle geometry."""
-    nozzle_width: Optional[float] = 0.1  # [m], may be calculated in scaling
+    nozzle_width: Optional[float] = 0.1  # [m], required in physical mode
 
 
 @dataclass
 class ScalingConfig:
-    """Physical scaling used for SI interpretation or physical-mode inputs."""
+    """Physical inputs used only by the physical case definition."""
     fluid: FluidConfig = field(default_factory=FluidConfig)
     geometry: GeometryConfig = field(default_factory=GeometryConfig)
     initial: InitialConditionConfig = field(
         default_factory=InitialConditionConfig)
-    recalculate: str = 'none'  # 'none', 'velocity', 'nozzle_width'
 
 
 @dataclass
@@ -79,10 +78,10 @@ class OutputConfig:
     result_filename: str = 'results.dat'
     dimensional_result_filename: str = 'results_dimensional.dat'
     plot_dimensionless: bool = True
-    plot_dimensional: bool = True
-    plot_dimensionless_summary: bool = True
-    plot_dimensional_summary: bool = True
-    save_dimensional_results: bool = True
+    plot_dimensional: bool = False
+    plot_dimensionless_summary: bool = False
+    plot_dimensional_summary: bool = False
+    save_dimensional_results: bool = False
     verbosity: int = 1  # 0=quiet, 1=normal, 2=debug
 
 

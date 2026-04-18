@@ -42,9 +42,7 @@ class Simulation:
         self.Prandtl = resolved_case.Prandtl
         self.Prandtl_turb = resolved_case.Prandtl_turb
         self.turbulent = resolved_case.turbulent
-        self.scaling_recalculated = resolved_case.scaling_recalculated
         self.reference_conditions = resolved_case.reference_conditions
-        self.half_width = self.reference_conditions.half_width_m
 
         # build mesh
         self.mesh = Mesh(config.mesh)
@@ -77,7 +75,6 @@ class Simulation:
         logger.info('*' * 50)
 
     def _print_flow_info(self):
-        ref = self.reference_conditions
         number_label = 'input' if self.case_mode == 'dimensionless' else 'derived'
 
         logger.info('')
@@ -86,29 +83,37 @@ class Simulation:
         logger.info('*' * 30)
         logger.info(' CASE MODE = %s', self.case_mode.upper())
         if self.case_mode == 'dimensionless':
-            logger.info(' SCALING = dimensional interpretation of the solution')
-            logger.info(' SCALING RECALCULATED = %s',
-                        self.scaling_recalculated.upper())
+            logger.info(' DIMENSIONAL (PHYSICAL) INPUTS = not used')
         else:
-            logger.info(' DIMENSIONLESS GROUPS = derived from scaling inputs')
-        logger.info(' FLUID = %s', self.fluid_name)
+            logger.info(' DIMENSIONLESS GROUPS = derived from dimensional '
+                        'physical inputs')
         logger.info(' REYNOLDS (%s) = %s', number_label, self.Reynolds)
         logger.info(' PRANDTL (%s) = %s', number_label, self.Prandtl)
         logger.info(' PRANDTL turbulent = %s', self.Prandtl_turb)
-        logger.info(' NOZZLE WIDTH [m] = %s', 2.0 * ref.half_width_m)
-        logger.info(' NOZZLE HALF-WIDTH [m] = %s', ref.half_width_m)
-        logger.info(' NOZZLE VELOCITY [m/s] = %s',
-                    ref.nozzle_velocity_m_s)
-        logger.info(' NOZZLE TEMPERATURE [C] = %s',
-                    ref.nozzle_temperature_C)
-        logger.info(' AMBIENT TEMPERATURE [C] = %s',
-                    ref.ambient_temperature_C)
-        logger.info(' FLUID PROPERTIES EVALUATED AT [C] = %s',
-                    ref.nozzle_temperature_C)
-        logger.info(' NOZZLE-TO-AMBIENT DELTA T [K] = %s',
-                    ref.reference_temperature_difference_K)
+        if self.reference_conditions is not None:
+            ref = self.reference_conditions
+            logger.info(' FLUID = %s', self.fluid_name)
+            logger.info(' NOZZLE WIDTH [m] = %s', 2.0 * ref.half_width_m)
+            logger.info(' NOZZLE HALF-WIDTH [m] = %s', ref.half_width_m)
+            logger.info(' NOZZLE VELOCITY [m/s] = %s',
+                        ref.nozzle_velocity_m_s)
+            logger.info(' NOZZLE TEMPERATURE [C] = %s',
+                        ref.nozzle_temperature_C)
+            logger.info(' AMBIENT TEMPERATURE [C] = %s',
+                        ref.ambient_temperature_C)
+            logger.info(' FLUID PROPERTIES EVALUATED AT [C] = %s',
+                        ref.nozzle_temperature_C)
+            logger.info(' NOZZLE-TO-AMBIENT DELTA T [K] = %s',
+                        ref.reference_temperature_difference_K)
         logger.info(' TURBULENCE = %s',
                      'ON' if self.turbulent else 'OFF')
+
+    def _has_dimensional_reference(self):
+        return self.reference_conditions is not None
+
+    def _log_dimensional_skip(self, action: str):
+        logger.info('Skipping %s: dimensional outputs require physical mode.',
+                    action)
 
     def _print_station_header(self, nx):
         text = (f' Jet propagation: GSI = {self.mesh.gsi[nx]} '
@@ -214,12 +219,18 @@ class Simulation:
             self.turbulent,
             self.mesh.gsi[0], self.mesh.dgsi, self.mesh.deta[0],
             self.mesh.etae, self.mesh.eta[-1], self.mesh.stretch)
-        if self.config.output.save_dimensional_results:
+        if self.config.output.save_dimensional_results and self._has_dimensional_reference():
             dimensional_filepath = os.path.join(
                 self.config.output.result_folder,
                 self.config.output.dimensional_result_filename)
             self.results.save_dimensional(
-                dimensional_filepath, self.turbulent)
+                dimensional_filepath,
+                self.Reynolds, self.Prandtl, self.Prandtl_turb,
+                self.turbulent,
+                self.mesh.gsi[0], self.mesh.dgsi, self.mesh.deta[0],
+                self.mesh.etae, self.mesh.eta[-1], self.mesh.stretch)
+        elif self.config.output.save_dimensional_results:
+            self._log_dimensional_skip('dimensional result export')
 
     def plot(self, steps=None):
         """Generate profile plots."""
@@ -237,13 +248,18 @@ class Simulation:
             plot_dimensionless_summary(
                 self.results, self.config.output.plot_folder,
                 self.turbulent)
-        if self.config.output.plot_dimensional:
+        if self.config.output.plot_dimensional and self._has_dimensional_reference():
             plot_dimensional_profiles(
                 self.results, steps,
                 self.config.output.dimensional_plot_folder,
                 self.turbulent)
-        if self.config.output.plot_dimensional_summary:
+        elif self.config.output.plot_dimensional:
+            self._log_dimensional_skip('dimensional profile plots')
+        if (self.config.output.plot_dimensional_summary and
+                self._has_dimensional_reference()):
             plot_dimensional_summary(
                 self.results,
                 self.config.output.dimensional_plot_folder,
                 self.turbulent)
+        elif self.config.output.plot_dimensional_summary:
+            self._log_dimensional_skip('dimensional summary plot')

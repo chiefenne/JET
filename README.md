@@ -8,11 +8,11 @@ The solver follows Keller's BOX method after Cebeci and Bradshaw. The refactored
 
 - The numerical solve itself uses only the transformed, dimensionless variables `f, u, v, g, p`.
 - Conversion back to dimensional physical quantities is handled strictly in postprocessing.
-- The user can run either `physical` mode or `dimensionless` mode through a single shared scaling definition.
-- In physical mode, `Reynolds` and `Prandtl` are derived from the scaling inputs.
-- In dimensionless mode, `Reynolds` and `Prandtl` are prescribed directly and the scaling can recalculate either nozzle width or exit velocity to remain Reynolds-consistent.
-- The code writes both dimensionless and dimensional result files.
-- The code generates both station-wise profile plots and summary plots for centerline decay and half-jet width.
+- The user can run either `physical` mode or `dimensionless` mode through two strict case definitions.
+- In physical mode, `Reynolds` and `Prandtl` are derived from the dimensional physical inputs.
+- In dimensionless mode, `Reynolds` and `Prandtl` are prescribed directly.
+- Dimensionless outputs are always available.
+- Dimensional result files and dimensional plots are available only in physical mode.
 
 ## Repository Layout
 
@@ -37,7 +37,7 @@ You can also pass a different config file:
 python jet.py my_case.ini
 ```
 
-The shipped [`config.ini`](config.ini) defaults to the legacy 2024 physical water case so the out-of-the-box run matches the earlier reference setup.
+The shipped [`config.ini`](config.ini) currently defaults to a strict dimensionless example while keeping a physical reference block in the same file for easy mode switching.
 
 ## Tests
 
@@ -52,7 +52,7 @@ python -m unittest discover -s tests -v
 The main configuration is assembled from dataclasses in [`jet/config.py`](jet/config.py).
 
 - `DimensionlessCaseConfig`: directly specifies `Reynolds` and `Prandtl`.
-- `ScalingConfig`: shared physical scaling definition used for dimensional interpretation and for physical-mode property evaluation.
+- `ScalingConfig`: physical inputs used by the physical case definition.
 - `TurbulenceConfig`: specifies `Prandtl_turb` and whether the run is turbulent or laminar.
 - `FluidConfig`: selects the fluid model.
 - `InitialConditionConfig`: nozzle-exit velocity, nozzle-exit temperature, and ambient temperature.
@@ -69,13 +69,13 @@ The expected sections are:
 
 - `[run]`: selects `mode = physical` or `mode = dimensionless`
 - `[dimensionless_case]`: `Reynolds`, `Prandtl`
-- `[scaling]`: fluid, temperatures, nozzle width, velocity, and optional Reynolds-consistency recalculation target
+- `[dimensional (physical)]`: fluid, temperatures, nozzle width, velocity
 - `[turbulence]`: `Prandtl_turb`, `turbulent`
 - `[mesh]`
 - `[solver]`
 - `[output]`
 
-The `[dimensionless_case]` and `[scaling]` sections remain active and non-commented in the file. The `[run]` mode toggle decides whether the solver uses the prescribed dimensionless groups or derives them from the scaling inputs.
+The `[run]` mode toggle decides whether the solver uses the prescribed dimensionless groups or derives them from the physical inputs. In `dimensionless` mode, the physical block is ignored.
 
 ### Dimensionless Solver
 
@@ -95,26 +95,11 @@ In `dimensionless` mode, the solve is prescribed directly through:
 - `Reynolds`
 - `Prandtl`
 
-The shared `scaling` block does not change the dimensionless equations. It is used for:
-
-- dimensional result reconstruction
-- dimensional plots
-- SI-unit interpretation of the dimensionless solution
-
-If desired, the scaling block can also recalculate either:
-
-- the exit velocity from the specified nozzle width and `Reynolds`
-- the nozzle width from the specified exit velocity and `Reynolds`
-
-This avoids inconsistent physical scaling for a given dimensionless case. The Reynolds number uses the half nozzle width by definition:
-
-```text
-Re = u0 * (nozzle_width / 2) / nu(T0)
-```
+The dimensionless case does not require any dimensional physical inputs. The solver uses only the prescribed dimensionless groups together with `Prandtl_turb` and the laminar/turbulent choice.
 
 ### Physical Case
 
-In `physical` mode, the scaling block defines:
+In `physical` mode, the `[dimensional (physical)]` block defines:
 
 - nozzle-exit velocity `u0`
 - nozzle-exit temperature `T0`
@@ -141,21 +126,23 @@ This keeps the input model closer to the actual experiment or boundary-value pro
 
 The default [`config.ini`](config.ini) contains both:
 
-- a physical water case matching the 2024 legacy script
-- a dimensionless case with matching `Reynolds` and `Prandtl`
+- a strict dimensionless example in `[dimensionless_case]`
+- a strict physical reference block in `[dimensional (physical)]`
 
-This makes it easy to switch modes without rewriting inputs.
+This makes it easy to switch modes while keeping each case definition explicit.
 
 ## Outputs
 
-By default the run writes:
+In physical mode the run can write:
 
 - `RESULTS/results.dat`: dimensionless station data
-- `RESULTS/results_dimensional.dat`: dimensional station data in SI units
-- `PLOTS/`: dimensionless station profiles plus `summary_dimensionless.png`
-- `PLOTS_DIMENSIONAL/`: dimensional station profiles plus `summary_dimensional.png`
+- `RESULTS/results_dimensional.dat`: the same station-by-station layout with an added dimensional postprocessing block
+- `PLOTS/`: legacy dimensionless station profiles
+- `PLOTS_DIMENSIONAL/`: optional dimensional station profiles
 
-The dimensional output is reconstructed only after the solve from the stored dimensionless solution.
+The summary plots are optional extras controlled in `[output]` and are off by default so the legacy profile layout stays unchanged unless explicitly enabled.
+
+The dimensional output is reconstructed only in physical mode after the solve from the stored dimensionless solution.
 
 ## Dimensional Postprocessing
 

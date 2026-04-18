@@ -11,6 +11,30 @@ from .results import SimulationResults
 logger = logging.getLogger(__name__)
 
 
+def _find_relative_width(eta: np.ndarray, profile: np.ndarray,
+                         fraction: float) -> float:
+    """Return eta where the profile drops to a fraction of centerline."""
+    if profile.size == 0 or profile[0] == 0.0:
+        return np.nan
+
+    threshold = fraction * profile[0]
+    indices = np.where(profile <= threshold)[0]
+    if len(indices) == 0:
+        return np.nan
+
+    j = int(indices[0])
+    if j == 0:
+        return float(eta[0])
+
+    denom = profile[j] - profile[j - 1]
+    if denom == 0.0:
+        return float(eta[j])
+
+    return float(
+        eta[j - 1] + (eta[j] - eta[j - 1]) *
+        (threshold - profile[j - 1]) / denom)
+
+
 def plot_profiles(results: SimulationResults, steps, plot_folder,
                   Reynolds, Prandtl, Prandtl_turb, turbulent,
                   gsi0, dgsi, deta0, etae, stretch):
@@ -161,18 +185,26 @@ def plot_dimensional_profiles(results: SimulationResults, steps, plot_folder,
 def plot_dimensionless_summary(results: SimulationResults, plot_folder,
                                turbulent):
     """Create a summary plot for dimensionless centerline values."""
-    dimensional = results.dimensionalize()
     os.makedirs(plot_folder, exist_ok=True)
     logger.info('Creating dimensionless summary plot in: %s',
                 os.path.abspath(plot_folder))
 
-    xi = np.array([station.xi for station in dimensional.stations])
-    u_center = np.array([station.normalized_axial_velocity[0]
-                         for station in dimensional.stations])
-    theta_center = np.array([station.normalized_temperature[0]
-                             for station in dimensional.stations])
-    eta_half = np.array([station.half_jet_width_eta
-                         for station in dimensional.stations])
+    xi = np.array([station.gsi for station in results.stations], dtype=float)
+    u_center = np.array([
+        station.u[0] / (3.0 * station.gsi**(1.0 / 3.0))
+        for station in results.stations
+    ], dtype=float)
+    theta_center = np.array([
+        station.g[0] / (station.gsi**(1.0 / 3.0))
+        for station in results.stations
+    ], dtype=float)
+    eta_half = np.array([
+        _find_relative_width(
+            station.eta,
+            station.u / (3.0 * station.gsi**(1.0 / 3.0)),
+            0.5)
+        for station in results.stations
+    ], dtype=float)
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
 
