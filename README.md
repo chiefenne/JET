@@ -51,7 +51,7 @@ python -m unittest discover -s tests -v
 
 The main configuration is assembled from dataclasses in [`jet/config.py`](jet/config.py).
 
-- `DimensionlessCaseConfig`: directly specifies `Reynolds` and `Prandtl`.
+- `DimensionlessConfig`: directly specifies `Reynolds` and `Prandtl`.
 - `ScalingConfig`: physical inputs used by the physical case definition.
 - `TurbulenceConfig`: specifies `Prandtl_turb` and whether the run is turbulent or laminar.
 - `FluidConfig`: selects the fluid model.
@@ -68,7 +68,7 @@ The entry point loads an INI file through [`jet/config_loader.py`](jet/config_lo
 The expected sections are:
 
 - `[run]`: selects `mode = physical` or `mode = dimensionless`
-- `[dimensionless_case]`: `Reynolds`, `Prandtl`
+- `[dimensionless]`: `Reynolds`, `Prandtl`
 - `[dimensional (physical)]`: fluid, temperatures, nozzle width, velocity
 - `[turbulence]`: `Prandtl_turb`, `turbulent`
 - `[mesh]`
@@ -126,7 +126,7 @@ This keeps the input model closer to the actual experiment or boundary-value pro
 
 The default [`config.ini`](config.ini) contains both:
 
-- a strict dimensionless example in `[dimensionless_case]`
+- a strict dimensionless example in `[dimensionless]`
 - a strict physical reference block in `[dimensional (physical)]`
 
 This makes it easy to switch modes while keeping each case definition explicit.
