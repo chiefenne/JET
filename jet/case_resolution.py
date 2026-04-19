@@ -74,8 +74,8 @@ def resolve_case(config: SimulationConfig) -> ResolvedDimensionlessCase:
         return ResolvedDimensionlessCase(
             mode='dimensionless',
             fluid_name=None,
-            Reynolds=config.dimensionless_case.Reynolds,
-            Prandtl=config.dimensionless_case.Prandtl,
+            Reynolds=config.dimensionless.Reynolds,
+            Prandtl=config.dimensionless.Prandtl,
             Prandtl_turb=config.turbulence.Prandtl_turb,
             turbulent=config.turbulence.turbulent,
             reference_conditions=None)

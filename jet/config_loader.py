@@ -5,7 +5,7 @@ from __future__ import annotations
 import configparser
 from pathlib import Path
 
-from .config import (DimensionlessCaseConfig, FluidConfig, GeometryConfig,
+from .config import (DimensionlessConfig, FluidConfig, GeometryConfig,
                      InitialConditionConfig, MeshConfig, OutputConfig,
                      ScalingConfig, SimulationConfig, SolverConfig,
                      TurbulenceConfig)
@@ -64,7 +64,7 @@ def load_simulation_config(config_path: str | Path = 'config.ini'
         raise FileNotFoundError(f"Could not read config file: {path}")
 
     _require_section(parser, 'run')
-    _require_section(parser, 'dimensionless_case')
+    _require_section(parser, 'dimensionless')
     _require_section(parser, 'turbulence')
     mode = parser.get('run', 'mode', fallback='physical').strip().lower()
     if mode not in ('physical', 'dimensionless'):
@@ -140,9 +140,9 @@ def load_simulation_config(config_path: str | Path = 'config.ini'
 
     return SimulationConfig(
         mode=mode,
-        dimensionless_case=DimensionlessCaseConfig(
-            Reynolds=parser.getfloat('dimensionless_case', 'Reynolds'),
-            Prandtl=parser.getfloat('dimensionless_case', 'Prandtl'),
+        dimensionless=DimensionlessConfig(
+            Reynolds=parser.getfloat('dimensionless', 'Reynolds'),
+            Prandtl=parser.getfloat('dimensionless', 'Prandtl'),
         ),
         scaling=(_read_scaling(parser)
                  if mode == 'physical' else ScalingConfig()),
