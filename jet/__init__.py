@@ -12,7 +12,7 @@ Usage:
 
 from .config import (SimulationConfig, FluidConfig,
                      InitialConditionConfig, GeometryConfig,
-                     ScalingConfig, DimensionlessCaseConfig,
+                     ScalingConfig, DimensionlessConfig,
                      TurbulenceConfig, MeshConfig, SolverConfig,
                      OutputConfig)
 from .simulation import Simulation
@@ -30,7 +30,7 @@ __all__ = [
     'Simulation', 'SimulationConfig',
     'FluidConfig', 'InitialConditionConfig',
     'GeometryConfig',
-    'ScalingConfig', 'DimensionlessCaseConfig',
+    'ScalingConfig', 'DimensionlessConfig',
     'TurbulenceConfig',
     'MeshConfig', 'SolverConfig', 'OutputConfig',
     'FluidProperties', 'ReferenceConditions',
