@@ -38,7 +38,7 @@ class ScalingConfig:
 
 
 @dataclass
-class DimensionlessCaseConfig:
+class DimensionlessConfig:
     """Dimensionless input case for the transformed solver."""
     Reynolds: float = 30000.0
     Prandtl: float = 0.7
@@ -89,8 +89,8 @@ class OutputConfig:
 class SimulationConfig:
     """Top-level configuration combining all sub-configs."""
     mode: str = 'physical'  # 'physical' or 'dimensionless'
-    dimensionless_case: DimensionlessCaseConfig = field(
-        default_factory=DimensionlessCaseConfig)
+    dimensionless: DimensionlessConfig = field(
+        default_factory=DimensionlessConfig)
     scaling: ScalingConfig = field(default_factory=ScalingConfig)
     turbulence: TurbulenceConfig = field(default_factory=TurbulenceConfig)
     mesh: MeshConfig = field(default_factory=MeshConfig)
