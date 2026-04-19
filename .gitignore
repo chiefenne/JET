@@ -13,3 +13,4 @@ TMP_PLOTS/
 TMP_PLOTS_DIM/
 __pycache__/
 *.pyc
+AGENTS.md
